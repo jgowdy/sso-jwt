@@ -67,6 +67,7 @@ fn print_keyring_notice() {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
