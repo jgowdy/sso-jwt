@@ -33,7 +33,7 @@ impl TpmStorage {
 
         #[cfg(target_os = "windows")]
         {
-            use enclaveapp_core::traits::{EnclaveEncryptor, EnclaveKeyManager};
+            use enclaveapp_core::traits::EnclaveKeyManager;
             use enclaveapp_core::types::{AccessPolicy, KeyType};
 
             let encryptor = enclaveapp_windows::TpmEncryptor::new(APP_NAME);
