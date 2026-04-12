@@ -30,6 +30,7 @@ enclaveapp-bridge = { workspace = true }
 enclaveapp-wsl = { workspace = true }
 
 [dev-dependencies]
+mockito = "1"
 tempfile = "3"
 
 [lints]

@@ -337,7 +337,12 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
 
     // Full re-authentication
     let auto_open = !config.no_open;
-    let token = oauth::authenticate(&config.oauth_url, &config.client_id, auto_open)?;
+    let token = oauth::authenticate(
+        &config.oauth_url,
+        config.token_url.as_deref(),
+        &config.client_id,
+        auto_open,
+    )?;
 
     let token_iat = jwt::extract_iat(&token).unwrap_or_else(|_| now_secs());
 

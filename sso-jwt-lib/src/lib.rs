@@ -15,6 +15,8 @@ pub struct GetJwtOptions {
     pub env: Option<String>,
     /// Override OAuth service URL (bypasses server profile resolution)
     pub oauth_url: Option<String>,
+    /// Override token polling URL (separate from device authorization endpoint)
+    pub token_url: Option<String>,
     /// Override heartbeat URL
     pub heartbeat_url: Option<String>,
     /// Override client ID
@@ -46,6 +48,9 @@ pub fn get_jwt(options: &GetJwtOptions) -> anyhow::Result<String> {
     }
     if let Some(ref u) = options.oauth_url {
         config.oauth_url = u.clone();
+    }
+    if let Some(ref u) = options.token_url {
+        config.token_url = Some(u.clone());
     }
     if let Some(ref u) = options.heartbeat_url {
         config.heartbeat_url = Some(u.clone());
@@ -83,6 +88,7 @@ mod tests {
         assert!(opts.server.is_none());
         assert!(opts.env.is_none());
         assert!(opts.oauth_url.is_none());
+        assert!(opts.token_url.is_none());
         assert!(opts.heartbeat_url.is_none());
         assert!(opts.client_id.is_none());
         assert!(opts.cache_name.is_none());
@@ -109,6 +115,7 @@ mod tests {
     fn options_with_direct_url() {
         let opts = GetJwtOptions {
             oauth_url: Some("https://auth.example.com/device".to_string()),
+            token_url: Some("https://auth.example.com/token".to_string()),
             heartbeat_url: Some("https://auth.example.com/heartbeat".to_string()),
             client_id: Some("my-client".to_string()),
             ..Default::default()
@@ -116,6 +123,10 @@ mod tests {
         assert_eq!(
             opts.oauth_url.as_deref(),
             Some("https://auth.example.com/device")
+        );
+        assert_eq!(
+            opts.token_url.as_deref(),
+            Some("https://auth.example.com/token")
         );
         assert_eq!(opts.client_id.as_deref(), Some("my-client"));
         assert!(opts.server.is_none());

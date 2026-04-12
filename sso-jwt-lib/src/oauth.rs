@@ -29,15 +29,18 @@ struct TokenPollResponse {
 }
 
 /// Request a new device code from the OAuth service.
+///
+/// Posts directly to `oauth_url` (the device authorization endpoint).
+/// Sends `Accept: application/json` for RFC 8628 compliance.
 pub fn get_device_code(
     client: &reqwest::blocking::Client,
     oauth_url: &str,
     client_id: &str,
 ) -> Result<DeviceCodeResponse> {
-    let url = format!("{oauth_url}/token");
     let resp = client
-        .post(&url)
+        .post(oauth_url)
         .header("content-type", "application/x-www-form-urlencoded")
+        .header("accept", "application/json")
         .body(format!("client_id={client_id}"))
         .send()
         .context("failed to request device code")?;
@@ -56,15 +59,21 @@ pub fn get_device_code(
 }
 
 /// Poll the OAuth service until the user authorizes, or timeout.
+///
+/// When `token_url` is `Some`, polls that endpoint. Otherwise falls back to
+/// `oauth_url` (backward compat for services that use a single endpoint).
+/// Includes `grant_type=urn:ietf:params:oauth:grant-type:device_code` per
+/// RFC 8628.
 pub fn poll_for_token(
     client: &reqwest::blocking::Client,
     oauth_url: &str,
+    token_url: Option<&str>,
     client_id: &str,
     device_code: &str,
     interval: u64,
     expires_in: u64,
 ) -> Result<String> {
-    let url = format!("{oauth_url}/token");
+    let url = token_url.unwrap_or(oauth_url);
     let start = std::time::Instant::now();
     let timeout = Duration::from_secs(expires_in);
     let mut poll_interval = Duration::from_secs(interval);
@@ -79,9 +88,12 @@ pub fn poll_for_token(
         std::thread::sleep(poll_interval);
 
         let resp = client
-            .post(&url)
+            .post(url)
             .header("content-type", "application/x-www-form-urlencoded")
-            .body(format!("client_id={client_id}&device_code={device_code}"))
+            .header("accept", "application/json")
+            .body(format!(
+                "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code&client_id={client_id}&device_code={device_code}"
+            ))
             .send()
             .context("failed to poll for token")?;
 
@@ -141,8 +153,17 @@ pub fn open_browser(uri: &str) -> Result<()> {
 
 /// Run the full OAuth Device Code flow: request code, prompt user,
 /// poll for token.
+///
+/// `token_url` is the separate token endpoint for polling. When `None`,
+/// `oauth_url` is used for both device authorization and token polling
+/// (backward compat).
 #[allow(clippy::print_stderr)]
-pub fn authenticate(oauth_url: &str, client_id: &str, auto_open: bool) -> Result<String> {
+pub fn authenticate(
+    oauth_url: &str,
+    token_url: Option<&str>,
+    client_id: &str,
+    auto_open: bool,
+) -> Result<String> {
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()
@@ -170,6 +191,7 @@ pub fn authenticate(oauth_url: &str, client_id: &str, auto_open: bool) -> Result
     poll_for_token(
         &client,
         oauth_url,
+        token_url,
         client_id,
         &code.device_code,
         code.interval,
@@ -379,5 +401,121 @@ mod tests {
         let resp: TokenPollResponse = serde_json::from_str(json).expect("valid access_denied JSON");
         assert!(resp.access_token.is_none());
         assert_eq!(resp.error.as_deref(), Some("access_denied"));
+    }
+
+    #[test]
+    fn get_device_code_posts_to_oauth_url_directly() {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("POST", "/")
+            .match_header("accept", "application/json")
+            .match_header("content-type", "application/x-www-form-urlencoded")
+            .match_body("client_id=test-client")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "device_code": "dev123",
+                    "user_code": "ABCD1234",
+                    "verification_uri": "https://example.com/verify"
+                }"#,
+            )
+            .create();
+
+        let client = reqwest::blocking::Client::new();
+        let resp = get_device_code(&client, &server.url(), "test-client").expect("should succeed");
+        assert_eq!(resp.device_code, "dev123");
+        assert_eq!(resp.user_code, "ABCD1234");
+        mock.assert();
+    }
+
+    #[test]
+    fn get_device_code_no_token_suffix() {
+        // Verify that /token is NOT appended to the URL
+        let mut server = mockito::Server::new();
+        let _wrong = server.mock("POST", "/token").with_status(404).create();
+        let correct = server
+            .mock("POST", "/device/code")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "device_code": "dc",
+                    "user_code": "UC123456",
+                    "verification_uri": "https://example.com"
+                }"#,
+            )
+            .create();
+
+        let client = reqwest::blocking::Client::new();
+        let url = format!("{}/device/code", server.url());
+        let resp = get_device_code(&client, &url, "cid").expect("should hit /device/code");
+        assert_eq!(resp.device_code, "dc");
+        correct.assert();
+    }
+
+    #[test]
+    fn poll_for_token_uses_token_url_when_provided() {
+        let mut server = mockito::Server::new();
+        let token_mock = server
+            .mock("POST", "/token")
+            .match_header("accept", "application/json")
+            .match_body(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::Regex(
+                    "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code".to_string(),
+                ),
+                mockito::Matcher::Regex("client_id=cid".to_string()),
+                mockito::Matcher::Regex("device_code=dc".to_string()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"access_token":"the-token"}"#)
+            .create();
+
+        let client = reqwest::blocking::Client::new();
+        let token_url = format!("{}/token", server.url());
+        let oauth_url = format!("{}/should-not-be-used", server.url());
+        let result = poll_for_token(&client, &oauth_url, Some(&token_url), "cid", "dc", 0, 10)
+            .expect("should succeed");
+        assert_eq!(result, "the-token");
+        token_mock.assert();
+    }
+
+    #[test]
+    fn poll_for_token_falls_back_to_oauth_url() {
+        let mut server = mockito::Server::new();
+        let oauth_mock = server
+            .mock("POST", "/device")
+            .match_header("accept", "application/json")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"access_token":"fallback-token"}"#)
+            .create();
+
+        let client = reqwest::blocking::Client::new();
+        let oauth_url = format!("{}/device", server.url());
+        let result = poll_for_token(&client, &oauth_url, None, "cid", "dc", 0, 10)
+            .expect("should succeed using oauth_url fallback");
+        assert_eq!(result, "fallback-token");
+        oauth_mock.assert();
+    }
+
+    #[test]
+    fn poll_for_token_includes_grant_type() {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("POST", "/token")
+            .match_body(mockito::Matcher::Regex(
+                "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code".to_string(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"access_token":"tok"}"#)
+            .create();
+
+        let client = reqwest::blocking::Client::new();
+        let url = format!("{}/token", server.url());
+        drop(poll_for_token(&client, &url, None, "c", "d", 0, 10));
+        mock.assert();
     }
 }

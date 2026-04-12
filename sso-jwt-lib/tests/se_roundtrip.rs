@@ -13,7 +13,8 @@ fn se_encrypt_decrypt_roundtrip() {
         sso_jwt_lib::secure_storage::platform_storage(false).expect("failed to create storage");
 
     // Normal JWT-like data
-    let plaintext = b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzEwMDAwMDAwfQ.fake";
+    let plaintext =
+        b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0IiwiaWF0IjoxNzEwMDAwMDAwfQ.fake";
     let ciphertext = storage.encrypt(plaintext).expect("encrypt failed");
     assert_ne!(ciphertext, plaintext);
     let decrypted = storage.decrypt(&ciphertext).expect("decrypt failed");

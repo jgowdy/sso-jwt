@@ -10,6 +10,8 @@ pub struct JwtOptions {
     pub env: Option<String>,
     /// Override OAuth service URL
     pub oauth_url: Option<String>,
+    /// Override token polling URL (separate from device authorization endpoint)
+    pub token_url: Option<String>,
     /// Override heartbeat URL
     pub heartbeat_url: Option<String>,
     /// Override client ID
@@ -47,6 +49,7 @@ fn convert_options(options: Option<JwtOptions>) -> sso_jwt_lib::GetJwtOptions {
             server: o.server,
             env: o.env,
             oauth_url: o.oauth_url,
+            token_url: o.token_url,
             heartbeat_url: o.heartbeat_url,
             client_id: o.client_id,
             cache_name: o.cache_name,

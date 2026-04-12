@@ -14,6 +14,7 @@ pub struct Config {
     pub server: String,
     pub environment: Option<String>,
     pub oauth_url: String,
+    pub token_url: Option<String>,
     pub heartbeat_url: Option<String>,
     pub client_id: String,
     pub risk_level: u8,
@@ -43,6 +44,7 @@ pub struct ServerFileConfig {
 pub struct EnvironmentFileConfig {
     pub default: Option<bool>,
     pub oauth_url: Option<String>,
+    pub token_url: Option<String>,
     pub heartbeat_url: Option<String>,
 }
 
@@ -60,6 +62,7 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_SERVER.to_string()),
             environment: None,
             oauth_url: String::new(),
+            token_url: None,
             heartbeat_url: None,
             client_id: DEFAULT_CLIENT_ID.to_string(),
             risk_level: fc.risk_level.unwrap_or(DEFAULT_RISK_LEVEL),
@@ -80,6 +83,9 @@ impl Config {
         }
         if let Ok(v) = std::env::var("SSOJWT_OAUTH_URL") {
             cfg.oauth_url = v;
+        }
+        if let Ok(v) = std::env::var("SSOJWT_TOKEN_URL") {
+            cfg.token_url = Some(v);
         }
         if let Ok(v) = std::env::var("SSOJWT_HEARTBEAT_URL") {
             cfg.heartbeat_url = Some(v);
@@ -190,6 +196,9 @@ impl Config {
                 bail!("oauth_url is required on the environment but is missing");
             }
         };
+        if self.token_url.is_none() {
+            self.token_url = env_config.token_url.clone();
+        }
         self.heartbeat_url = env_config.heartbeat_url.clone();
 
         Ok(())
@@ -313,10 +322,11 @@ mod tests {
     /// Mutex to serialize tests that read/write SSOJWT_* env vars via Config::load().
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
-    const SSOJWT_KEYS: [&str; 8] = [
+    const SSOJWT_KEYS: [&str; 9] = [
         "SSOJWT_SERVER",
         "SSOJWT_ENVIRONMENT",
         "SSOJWT_OAUTH_URL",
+        "SSOJWT_TOKEN_URL",
         "SSOJWT_HEARTBEAT_URL",
         "SSOJWT_CLIENT_ID",
         "SSOJWT_RISK_LEVEL",
@@ -349,6 +359,7 @@ mod tests {
             server: "default".to_string(),
             environment: None,
             oauth_url: String::new(),
+            token_url: None,
             heartbeat_url: None,
             client_id: DEFAULT_CLIENT_ID.to_string(),
             risk_level: DEFAULT_RISK_LEVEL,
@@ -368,6 +379,7 @@ mod tests {
         assert_eq!(cfg.server, "default");
         assert!(cfg.environment.is_none());
         assert_eq!(cfg.oauth_url, "");
+        assert!(cfg.token_url.is_none());
         assert!(cfg.heartbeat_url.is_none());
         assert_eq!(cfg.client_id, "sso-jwt");
         assert_eq!(cfg.risk_level, 2);
@@ -756,5 +768,85 @@ oauth_url = "https://staging.gamma.example.com/oauth"
         assert!(servers.contains_key("alpha"));
         assert!(servers.contains_key("beta"));
         assert!(servers.contains_key("gamma"));
+    }
+
+    #[test]
+    fn parse_file_config_with_token_url() {
+        let toml_str = r#"
+[servers.github]
+client_id = "gh-client-id"
+
+[servers.github.environments.prod]
+default = true
+oauth_url = "https://github.com/login/device/code"
+token_url = "https://github.com/login/oauth/access_token"
+"#;
+        let fc: FileConfig = toml::from_str(toml_str).expect("valid TOML with token_url");
+        let servers = fc.servers.expect("servers present");
+        let github = servers.get("github").expect("github server");
+        let envs = github.environments.as_ref().expect("environments present");
+        let prod = envs.get("prod").expect("prod environment");
+        assert_eq!(
+            prod.oauth_url.as_deref(),
+            Some("https://github.com/login/device/code")
+        );
+        assert_eq!(
+            prod.token_url.as_deref(),
+            Some("https://github.com/login/oauth/access_token")
+        );
+    }
+
+    #[test]
+    fn parse_file_config_without_token_url() {
+        let toml_str = r#"
+[servers.legacy]
+client_id = "legacy-client"
+
+[servers.legacy.environments.prod]
+default = true
+oauth_url = "https://sso.example.com/device"
+"#;
+        let fc: FileConfig = toml::from_str(toml_str).expect("valid TOML without token_url");
+        let servers = fc.servers.expect("servers present");
+        let legacy = servers.get("legacy").expect("legacy server");
+        let envs = legacy.environments.as_ref().expect("environments present");
+        let prod = envs.get("prod").expect("prod environment");
+        assert_eq!(
+            prod.oauth_url.as_deref(),
+            Some("https://sso.example.com/device")
+        );
+        assert!(
+            prod.token_url.is_none(),
+            "token_url should be None when not configured"
+        );
+    }
+
+    #[test]
+    fn env_var_overrides_token_url() {
+        let _lock = ENV_MUTEX.lock().expect("env mutex poisoned");
+        let saved = save_and_clear_env();
+
+        std::env::set_var("SSOJWT_TOKEN_URL", "https://custom.example.com/token");
+        let cfg = Config::load().expect("Config::load should succeed");
+        assert_eq!(
+            cfg.token_url.as_deref(),
+            Some("https://custom.example.com/token")
+        );
+
+        restore_env(saved);
+    }
+
+    #[test]
+    fn token_url_absent_by_default() {
+        let _lock = ENV_MUTEX.lock().expect("env mutex poisoned");
+        let saved = save_and_clear_env();
+
+        let cfg = Config::load().expect("Config::load should succeed");
+        assert!(
+            cfg.token_url.is_none(),
+            "token_url should be None by default"
+        );
+
+        restore_env(saved);
     }
 }

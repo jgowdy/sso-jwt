@@ -151,7 +151,26 @@ env_var = "COMPANY_JWT"
 | `SSOJWT_BIOMETRIC` | Enable biometric (true/1) |
 | `SSOJWT_CACHE_NAME` | Cache name |
 | `SSOJWT_ENV_VAR` | Env var name for exec mode |
-| `SSOJWT_OAUTH_URL` | Override OAuth URL |
+| `SSOJWT_OAUTH_URL` | Override device authorization URL |
+| `SSOJWT_TOKEN_URL` | Override token polling URL (separate from device auth) |
+
+### GitHub Device Flow Example
+
+`sso-jwt` supports standard RFC 8628 providers like GitHub. The `oauth_url` is the device
+authorization endpoint and `token_url` is the separate token polling endpoint:
+
+```toml
+[servers.github]
+client_id = "your-github-oauth-app-client-id"
+
+[servers.github.environments.prod]
+default = true
+oauth_url = "https://github.com/login/device/code"
+token_url = "https://github.com/login/oauth/access_token"
+```
+
+When `token_url` is omitted, `oauth_url` is used for both device authorization and token
+polling (backward compatible with single-endpoint services).
 
 ## Shell Integration
 
