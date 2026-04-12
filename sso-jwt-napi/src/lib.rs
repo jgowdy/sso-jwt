@@ -1,7 +1,6 @@
 use napi_derive::napi;
 
 /// Options for obtaining a JWT.
-/// Matches the Node.js `getJwt()` parameter shape.
 #[napi(object)]
 #[derive(Debug, Default)]
 pub struct JwtOptions {
@@ -23,15 +22,9 @@ pub struct JwtOptions {
     pub biometric: Option<bool>,
     /// Don't auto-open browser
     pub no_open: Option<bool>,
-    /// Environment variable name override
-    pub env_var: Option<String>,
 }
 
 /// Obtain a JWT via the OAuth Device Code flow with hardware-backed caching.
-///
-/// Returns a cached token if one exists and is still valid.
-/// Proactively refreshes tokens approaching expiration via heartbeat.
-/// Falls back to full browser-based re-authentication when necessary.
 ///
 /// ```javascript
 /// const { getJwt } = require('sso-jwt');
@@ -47,13 +40,6 @@ pub async fn get_jwt(options: Option<JwtOptions>) -> napi::Result<String> {
         .map_err(|e| napi::Error::from_reason(format!("{e:#}")))
 }
 
-/// Backward-compatible alias for `getJwt`. Drop-in replacement for
-/// `sso-jwt-legacy`'s `getJwt()`.
-#[napi]
-pub async fn get_jwt(options: Option<JwtOptions>) -> napi::Result<String> {
-    get_jwt(options).await
-}
-
 fn convert_options(options: Option<JwtOptions>) -> sso_jwt_lib::GetJwtOptions {
     match options {
         None => sso_jwt_lib::GetJwtOptions::default(),
@@ -67,7 +53,6 @@ fn convert_options(options: Option<JwtOptions>) -> sso_jwt_lib::GetJwtOptions {
             risk_level: o.risk_level.map(|v| v as u8),
             biometric: o.biometric,
             no_open: o.no_open,
-            env_var: o.env_var,
         },
     }
 }

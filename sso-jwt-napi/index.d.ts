@@ -1,8 +1,14 @@
 export interface JwtOptions {
-  /** SSO environment: "dev", "test", "ote", "prod" */
+  /** Server profile name */
+  server?: string;
+  /** Environment within the server profile */
   env?: string;
-  /** Override OAuth service URL */
+  /** Override OAuth service URL (bypasses server profile) */
   oauthUrl?: string;
+  /** Override heartbeat URL */
+  heartbeatUrl?: string;
+  /** Override OAuth client ID */
+  clientId?: string;
   /** Cache name for the encrypted token */
   cacheName?: string;
   /** Risk level 1-3 (1=low/24h, 2=medium/12h, 3=high/1h) */
@@ -13,13 +19,5 @@ export interface JwtOptions {
   noOpen?: boolean;
 }
 
-/**
- * Obtain an SSO JWT, authenticating via the OAuth Device Code flow if needed.
- *
- * Returns a cached token if one exists and is still valid.
- * Proactively refreshes tokens approaching expiration via the SSO heartbeat.
- * Falls back to full browser-based re-authentication when necessary.
- *
- * Drop-in replacement for `sso-jwt-legacy`'s `getJwt()`.
- */
+/** Obtain a JWT via OAuth Device Code flow with hardware-backed caching. */
 export function getJwt(options?: JwtOptions | null): Promise<string>;

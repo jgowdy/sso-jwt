@@ -64,6 +64,10 @@ pub enum Commands {
 
     /// Run a command with the JWT injected into its environment
     Exec {
+        /// Environment variable name for the JWT
+        #[arg(long, default_value = "SSO_JWT")]
+        env_var: String,
+
         /// Command and arguments to run
         #[arg(last = true, required = true)]
         command: Vec<String>,
@@ -134,9 +138,12 @@ pub fn run(cli: Cli) -> Result<()> {
     config.resolve_server()?;
 
     match cli.command {
-        Some(Commands::Exec { ref command }) => {
+        Some(Commands::Exec {
+            ref env_var,
+            ref command,
+        }) => {
             let jwt = resolve_token(&config)?;
-            exec::run(&config.env_var, &jwt, command)
+            exec::run(env_var, &jwt, command)
         }
         None => {
             if config.clear {

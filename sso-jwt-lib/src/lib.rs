@@ -6,7 +6,7 @@ pub mod secure_storage;
 
 pub use config::{Config, EnvironmentFileConfig, FileConfig, ServerFileConfig};
 
-/// Options for obtaining a JWT, matching the Node.js `getJwt` contract.
+/// Options for obtaining a JWT.
 #[derive(Debug, Clone, Default)]
 pub struct GetJwtOptions {
     /// Server profile name (default: from config or "default")
@@ -27,8 +27,6 @@ pub struct GetJwtOptions {
     pub biometric: Option<bool>,
     /// Don't auto-open browser (default: false)
     pub no_open: Option<bool>,
-    /// Environment variable name override
-    pub env_var: Option<String>,
 }
 
 /// High-level function to obtain a JWT.
@@ -36,8 +34,6 @@ pub struct GetJwtOptions {
 /// Loads configuration (file + env vars), applies the provided options,
 /// resolves server profiles, initializes platform-specific secure storage,
 /// and resolves a token from cache or via the OAuth Device Code flow.
-///
-/// This function matches the contract of the Node.js `getJwt()`.
 pub fn get_jwt(options: &GetJwtOptions) -> anyhow::Result<String> {
     let mut config = Config::load()?;
 
@@ -69,9 +65,6 @@ pub fn get_jwt(options: &GetJwtOptions) -> anyhow::Result<String> {
     if let Some(no) = options.no_open {
         config.no_open = no;
     }
-    if let Some(ref ev) = options.env_var {
-        config.env_var = ev.clone();
-    }
 
     // Resolve server profile (skipped if oauth_url already set directly)
     config.resolve_server()?;
@@ -96,7 +89,6 @@ mod tests {
         assert!(opts.risk_level.is_none());
         assert!(opts.biometric.is_none());
         assert!(opts.no_open.is_none());
-        assert!(opts.env_var.is_none());
     }
 
     #[test]
@@ -111,8 +103,6 @@ mod tests {
         assert_eq!(opts.env.as_deref(), Some("dev"));
         assert_eq!(opts.risk_level, Some(3));
         assert!(opts.oauth_url.is_none());
-        assert!(opts.heartbeat_url.is_none());
-        assert!(opts.client_id.is_none());
     }
 
     #[test]
@@ -121,19 +111,13 @@ mod tests {
             oauth_url: Some("https://auth.example.com/device".to_string()),
             heartbeat_url: Some("https://auth.example.com/heartbeat".to_string()),
             client_id: Some("my-client".to_string()),
-            env_var: Some("MY_JWT".to_string()),
             ..Default::default()
         };
         assert_eq!(
             opts.oauth_url.as_deref(),
             Some("https://auth.example.com/device")
         );
-        assert_eq!(
-            opts.heartbeat_url.as_deref(),
-            Some("https://auth.example.com/heartbeat")
-        );
         assert_eq!(opts.client_id.as_deref(), Some("my-client"));
-        assert_eq!(opts.env_var.as_deref(), Some("MY_JWT"));
         assert!(opts.server.is_none());
     }
 }

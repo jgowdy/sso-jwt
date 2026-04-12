@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 const DEFAULT_RISK_LEVEL: u8 = 2;
 const DEFAULT_CACHE_NAME: &str = "default";
-const DEFAULT_ENV_VAR: &str = "SSO_JWT";
 const DEFAULT_CLIENT_ID: &str = "sso-jwt";
 const DEFAULT_SERVER: &str = "default";
 
@@ -17,7 +16,6 @@ pub struct Config {
     pub oauth_url: String,
     pub heartbeat_url: Option<String>,
     pub client_id: String,
-    pub env_var: String,
     pub risk_level: u8,
     pub biometric: bool,
     pub cache_name: String,
@@ -38,7 +36,6 @@ pub struct FileConfig {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ServerFileConfig {
     pub client_id: Option<String>,
-    pub env_var: Option<String>,
     pub environments: Option<HashMap<String, EnvironmentFileConfig>>,
 }
 
@@ -65,7 +62,6 @@ impl Config {
             oauth_url: String::new(),
             heartbeat_url: None,
             client_id: DEFAULT_CLIENT_ID.to_string(),
-            env_var: DEFAULT_ENV_VAR.to_string(),
             risk_level: fc.risk_level.unwrap_or(DEFAULT_RISK_LEVEL),
             biometric: fc.biometric.unwrap_or(false),
             cache_name: fc
@@ -91,9 +87,6 @@ impl Config {
         if let Ok(v) = std::env::var("SSOJWT_CLIENT_ID") {
             cfg.client_id = v;
         }
-        if let Ok(v) = std::env::var("SSOJWT_ENV_VAR") {
-            cfg.env_var = v;
-        }
         if let Ok(v) = std::env::var("SSOJWT_RISK_LEVEL") {
             if let Ok(rl) = v.parse::<u8>() {
                 cfg.risk_level = rl;
@@ -117,7 +110,7 @@ impl Config {
     /// Otherwise, looks up `self.server` in the file config's servers map,
     /// picks the environment (explicit name, or the one marked `default = true`),
     /// and pulls `oauth_url` / `heartbeat_url` from that environment.
-    /// `client_id` and `env_var` come from the server level.
+    /// `client_id` comes from the server level.
     pub fn resolve_server(&mut self) -> Result<()> {
         // Direct URL mode: oauth_url already set, skip server resolution
         if !self.oauth_url.is_empty() {
@@ -146,9 +139,6 @@ impl Config {
         // Apply server-level settings
         if let Some(ref cid) = server_config.client_id {
             self.client_id = cid.clone();
-        }
-        if let Some(ref ev) = server_config.env_var {
-            self.env_var = ev.clone();
         }
 
         // Resolve the environment
@@ -323,13 +313,12 @@ mod tests {
     /// Mutex to serialize tests that read/write SSOJWT_* env vars via Config::load().
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
-    const SSOJWT_KEYS: [&str; 9] = [
+    const SSOJWT_KEYS: [&str; 8] = [
         "SSOJWT_SERVER",
         "SSOJWT_ENVIRONMENT",
         "SSOJWT_OAUTH_URL",
         "SSOJWT_HEARTBEAT_URL",
         "SSOJWT_CLIENT_ID",
-        "SSOJWT_ENV_VAR",
         "SSOJWT_RISK_LEVEL",
         "SSOJWT_BIOMETRIC",
         "SSOJWT_CACHE_NAME",
@@ -362,7 +351,6 @@ mod tests {
             oauth_url: String::new(),
             heartbeat_url: None,
             client_id: DEFAULT_CLIENT_ID.to_string(),
-            env_var: DEFAULT_ENV_VAR.to_string(),
             risk_level: DEFAULT_RISK_LEVEL,
             biometric: false,
             cache_name: DEFAULT_CACHE_NAME.to_string(),
@@ -382,7 +370,6 @@ mod tests {
         assert_eq!(cfg.oauth_url, "");
         assert!(cfg.heartbeat_url.is_none());
         assert_eq!(cfg.client_id, "sso-jwt");
-        assert_eq!(cfg.env_var, "SSO_JWT");
         assert_eq!(cfg.risk_level, 2);
         assert!(!cfg.biometric);
         assert_eq!(cfg.cache_name, "default");
@@ -423,7 +410,6 @@ cache_name = "work"
 
 [servers.myco]
 client_id = "myco-client"
-env_var = "MYCO_JWT"
 
 [servers.myco.environments.prod]
 default = true
@@ -451,7 +437,6 @@ oauth_url = "https://other.example.com/oauth"
 
         let myco = servers.get("myco").expect("myco server should exist");
         assert_eq!(myco.client_id.as_deref(), Some("myco-client"));
-        assert_eq!(myco.env_var.as_deref(), Some("MYCO_JWT"));
 
         let envs = myco.environments.as_ref().expect("environments present");
         let prod = envs.get("prod").expect("prod environment");
@@ -750,7 +735,6 @@ oauth_url = "https://alpha.example.com/oauth"
 
 [servers.beta]
 client_id = "beta-id"
-env_var = "BETA_TOKEN"
 
 [servers.beta.environments.prod]
 default = true
