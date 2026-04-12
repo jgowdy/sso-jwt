@@ -253,7 +253,7 @@ jobs:
 
       - name: Update Scoop manifest
         env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
           version="${tag#v}"
