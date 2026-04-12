@@ -45,6 +45,7 @@ fn base64url_decode(input: &str) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use base64::engine::general_purpose::URL_SAFE_NO_PAD;

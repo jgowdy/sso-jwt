@@ -22,6 +22,7 @@ pub fn run(env_var: &str, jwt: &str, command: &[String]) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use std::process::Command;
 

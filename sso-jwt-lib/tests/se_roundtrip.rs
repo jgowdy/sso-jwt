@@ -2,6 +2,12 @@
 //! Only runs on macOS with hardware available.
 //! Set SSO_JWT_TEST_SE=1 to enable.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::print_stderr,
+    clippy::unseparated_literal_suffix
+)]
+
 #[test]
 fn se_encrypt_decrypt_roundtrip() {
     if std::env::var("SSO_JWT_TEST_SE").is_err() {

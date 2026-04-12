@@ -358,6 +358,7 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::secure_storage::mock::MockStorage;
@@ -561,7 +562,7 @@ mod tests {
     fn wrong_version_returns_none() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ver.enc");
-        let mut data = vec![0u8; HEADER_SIZE + 10];
+        let mut data = vec![0_u8; HEADER_SIZE + 10];
         data[0..4].copy_from_slice(MAGIC);
         data[4] = 0xFF; // bad version
         fs::write(&path, &data).unwrap();
@@ -801,7 +802,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("create tempdir");
         let path = dir.path().join("exact_header.enc");
 
-        let mut data = vec![0u8; HEADER_SIZE];
+        let mut data = vec![0_u8; HEADER_SIZE];
         data[0..4].copy_from_slice(MAGIC);
         data[4] = FORMAT_VERSION;
         data[5] = 3; // risk_level

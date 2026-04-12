@@ -68,6 +68,11 @@ pub fn platform_storage(biometric: bool) -> Result<Box<dyn SecureStorage>> {
 /// Mock storage for testing. Uses simple XOR -- obviously not secure,
 /// but lets us test cache format and lifecycle logic without real hardware.
 #[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    missing_debug_implementations,
+    clippy::new_without_default
+)]
 pub mod mock {
     use super::*;
 
