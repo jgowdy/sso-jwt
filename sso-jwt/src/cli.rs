@@ -238,8 +238,7 @@ fn run_add_server(
 /// Fetch a file from GitHub using multiple strategies, in order:
 /// 1. Raw GitHub URL (fast, no auth, works for public repos)
 /// 2. `git archive` over SSH (most users have SSH keys)
-/// 3. `gh` CLI (handles SAML SSO, internal repos, PATs)
-/// 4. GitHub API with `gh auth token` (direct HTTP)
+/// 3. `gh` CLI via `gh api` (handles SAML SSO, internal repos, PATs)
 fn fetch_from_github(github_path: &str) -> Result<String> {
     let parts: Vec<&str> = github_path.splitn(3, '/').collect();
     if parts.len() < 3 {
@@ -289,33 +288,6 @@ fn fetch_from_github(github_path: &str) -> Result<String> {
             let content = String::from_utf8_lossy(&output.stdout).to_string();
             if !content.is_empty() {
                 return Ok(content);
-            }
-        }
-    }
-
-    // Strategy 3: GitHub API with gh auth token
-    let gh_token = std::process::Command::new("gh")
-        .args(["auth", "token"])
-        .stderr(std::process::Stdio::null())
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
-
-    if let Some(ref token) = gh_token {
-        let api_url = format!("https://api.github.com/repos/{owner}/{repo}/contents/{path}");
-        let client = reqwest::blocking::Client::new();
-        if let Ok(resp) = client
-            .get(&api_url)
-            .header("Accept", "application/vnd.github.raw+json")
-            .header("User-Agent", "sso-jwt")
-            .header("Authorization", format!("Bearer {token}"))
-            .send()
-        {
-            if resp.status().is_success() {
-                if let Ok(text) = resp.text() {
-                    return Ok(text);
-                }
             }
         }
     }
