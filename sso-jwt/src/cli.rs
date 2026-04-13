@@ -132,6 +132,18 @@ pub fn run(cli: Cli) -> Result<()> {
     // Load config, apply CLI overrides, and resolve server profile
     let mut config = Config::load()?;
     apply_cli_overrides(&mut config, &cli);
+
+    // Handle --clear before resolve_server() so it works even with no server configured.
+    if config.clear && cli.command.is_none() {
+        if config.resolve_server().is_ok() {
+            cache::clear(&config)?;
+            eprintln!("Cache cleared.");
+        } else {
+            eprintln!("No server configured. Nothing to clear.");
+        }
+        return Ok(());
+    }
+
     config.resolve_server()?;
 
     match cli.command {
@@ -143,12 +155,6 @@ pub fn run(cli: Cli) -> Result<()> {
             exec::run(env_var, &jwt, command)
         }
         None => {
-            if config.clear {
-                cache::clear(&config)?;
-                eprintln!("Cache cleared.");
-                return Ok(());
-            }
-
             let jwt = resolve_token(&config)?;
             print!("{jwt}");
             Ok(())
