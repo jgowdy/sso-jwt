@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
-use sso_jwt_lib::{cache, config::Config, secure_storage};
+use enclaveapp_app_storage::{create_encryption_storage, AccessPolicy, StorageConfig};
+use sso_jwt_lib::{cache, config::Config};
 
 use crate::exec;
 use crate::shell_init;
@@ -332,7 +333,18 @@ fn apply_cli_overrides(config: &mut Config, cli: &Cli) {
 }
 
 fn resolve_token(config: &Config) -> Result<String> {
-    let storage = secure_storage::platform_storage(config.biometric)?;
+    let policy = if config.biometric {
+        AccessPolicy::BiometricOnly
+    } else {
+        AccessPolicy::None
+    };
+    let storage = create_encryption_storage(StorageConfig {
+        app_name: "sso-jwt".into(),
+        key_label: "cache-key".into(),
+        access_policy: policy,
+        extra_bridge_paths: vec![],
+        keys_dir: None,
+    })?;
     cache::resolve_token(config, storage.as_ref())
 }
 

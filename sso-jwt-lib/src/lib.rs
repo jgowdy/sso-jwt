@@ -2,7 +2,6 @@ pub mod cache;
 pub mod config;
 pub mod jwt;
 pub mod oauth;
-pub mod secure_storage;
 
 pub use config::{Config, EnvironmentFileConfig, FileConfig, ServerFileConfig};
 
@@ -74,7 +73,20 @@ pub fn get_jwt(options: &GetJwtOptions) -> anyhow::Result<String> {
     // Resolve server profile (skipped if oauth_url already set directly)
     config.resolve_server()?;
 
-    let storage = secure_storage::platform_storage(config.biometric)?;
+    use enclaveapp_app_storage::{create_encryption_storage, AccessPolicy, StorageConfig};
+
+    let policy = if config.biometric {
+        AccessPolicy::BiometricOnly
+    } else {
+        AccessPolicy::None
+    };
+    let storage = create_encryption_storage(StorageConfig {
+        app_name: "sso-jwt".into(),
+        key_label: "cache-key".into(),
+        access_policy: policy,
+        extra_bridge_paths: vec![],
+        keys_dir: None,
+    })?;
     cache::resolve_token(&config, storage.as_ref())
 }
 

@@ -14,6 +14,7 @@ enclaveapp-windows = { path = "../crates/enclaveapp-windows" }
 enclaveapp-bridge = { path = "../crates/enclaveapp-bridge" }
 enclaveapp-software = { path = "../crates/enclaveapp-software", features = ["encryption", "keyring-storage"] }
 enclaveapp-wsl = { path = "../crates/enclaveapp-wsl" }
+enclaveapp-app-storage = { path = "../crates/enclaveapp-app-storage" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

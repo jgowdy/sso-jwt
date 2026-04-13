@@ -21,7 +21,7 @@ cargo fmt --all -- --check
 
 Rust workspace with 4 crates:
 
-- **sso-jwt-lib** -- Core library. OAuth device code flow (RFC 8628), JWT parsing, token lifecycle (Fresh/RefreshWindow/Grace/Dead), binary cache format, heartbeat refresh, secure storage abstraction, config management.
+- **sso-jwt-lib** -- Core library. OAuth device code flow (RFC 8628), JWT parsing, token lifecycle (Fresh/RefreshWindow/Grace/Dead), binary cache format, heartbeat refresh, config management. Uses `enclaveapp-app-storage` for platform-detected hardware-backed encrypt/decrypt.
 - **sso-jwt** -- CLI binary. Commands: (default) get JWT, exec, shell-init, install, uninstall, add-server.
 - **sso-jwt-napi** -- Node.js native addon wrapping sso-jwt-lib.
 - **sso-jwt-tpm-bridge** -- Windows TPM bridge for WSL (JSON-RPC over stdin/stdout).
