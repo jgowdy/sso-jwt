@@ -536,14 +536,7 @@ mod tests {
 
     #[test]
     fn parse_cli_exec_custom_env_var() {
-        let cli = Cli::parse_from([
-            "sso-jwt",
-            "exec",
-            "--env-var",
-            "MY_TOKEN",
-            "--",
-            "cmd",
-        ]);
+        let cli = Cli::parse_from(["sso-jwt", "exec", "--env-var", "MY_TOKEN", "--", "cmd"]);
         match cli.command {
             Some(Commands::Exec { env_var, .. }) => {
                 assert_eq!(env_var, "MY_TOKEN");
@@ -622,10 +615,7 @@ mod tests {
                 force,
             }) => {
                 assert_eq!(label, "myco");
-                assert_eq!(
-                    from_url.as_deref(),
-                    Some("https://example.com/config.toml")
-                );
+                assert_eq!(from_url.as_deref(), Some("https://example.com/config.toml"));
                 assert!(from_github.is_none());
                 assert!(set_default);
                 assert!(force);
