@@ -10,7 +10,7 @@ variables.
 ## Architecture
 
 4-crate workspace plus shared dependencies from
-[libenclaveapp](https://github.com/jgowdy/libenclaveapp):
+[libenclaveapp](https://github.com/godaddy/libenclaveapp):
 
 | Crate | Type | Purpose |
 |---|---|---|

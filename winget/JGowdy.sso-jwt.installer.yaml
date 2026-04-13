@@ -13,7 +13,7 @@ Commands:
   - sso-jwt
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/jgowdy/sso-jwt/releases/download/v0.1.1/sso-jwt-x86_64-windows.msi
+    InstallerUrl: https://github.com/godaddy/sso-jwt/releases/download/v0.1.1/sso-jwt-x86_64-windows.msi
     InstallerSha256: PLACEHOLDER
 ManifestType: installer
 ManifestVersion: 1.6.0

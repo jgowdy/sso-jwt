@@ -7,7 +7,7 @@ If you discover a security vulnerability in sso-jwt, report it privately.
 **Do not open a public GitHub issue for security vulnerabilities.**
 
 Email: Report via GitHub's private vulnerability reporting feature on the
-[sso-jwt repository](https://github.com/jgowdy/sso-jwt/security/advisories/new),
+[sso-jwt repository](https://github.com/godaddy/sso-jwt/security/advisories/new),
 or contact the maintainer directly.
 
 Include:

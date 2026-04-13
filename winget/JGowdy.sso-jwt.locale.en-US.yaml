@@ -3,11 +3,11 @@ PackageIdentifier: JGowdy.sso-jwt
 PackageVersion: 0.1.1
 PackageLocale: en-US
 Publisher: Jay Gowdy
-PublisherUrl: https://github.com/jgowdy
+PublisherUrl: https://github.com/godaddy
 PackageName: sso-jwt
-PackageUrl: https://github.com/jgowdy/sso-jwt
+PackageUrl: https://github.com/godaddy/sso-jwt
 License: MIT
-LicenseUrl: https://github.com/jgowdy/sso-jwt/blob/main/LICENSE
+LicenseUrl: https://github.com/godaddy/sso-jwt/blob/main/LICENSE
 ShortDescription: SSO JWT CLI with hardware-backed secure caching using Secure Enclave and TPM 2.0
 Description: |-
   sso-jwt obtains and caches OAuth JWTs with hardware-backed encryption.
@@ -23,6 +23,6 @@ Tags:
   - secure-enclave
   - sso
   - authentication
-ReleaseNotesUrl: https://github.com/jgowdy/sso-jwt/releases/tag/v0.1.1
+ReleaseNotesUrl: https://github.com/godaddy/sso-jwt/releases/tag/v0.1.1
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

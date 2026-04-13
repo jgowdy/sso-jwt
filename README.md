@@ -19,25 +19,25 @@ This repository is a Cargo workspace containing four crates:
 
 ## Installation
 
-**[Download latest release](https://github.com/jgowdy/sso-jwt/releases/latest)** -- pre-built binaries for macOS, Windows, and Linux.
+**[Download latest release](https://github.com/godaddy/sso-jwt/releases/latest)** -- pre-built binaries for macOS, Windows, and Linux.
 
 ### Homebrew (macOS)
 
 ```bash
-brew tap jgowdy/sso-jwt
+brew tap godaddy/sso-jwt
 brew install sso-jwt
 ```
 
 ### Windows -- MSI installer
 
 Download `sso-jwt-x86_64-windows.msi` from the
-[latest release](https://github.com/jgowdy/sso-jwt/releases). Double-click
+[latest release](https://github.com/godaddy/sso-jwt/releases). Double-click
 to install.
 
 ### Windows -- Scoop
 
 ```powershell
-scoop bucket add sso-jwt https://github.com/jgowdy/scoop-sso-jwt
+scoop bucket add sso-jwt https://github.com/godaddy/scoop-sso-jwt
 scoop install sso-jwt
 ```
 
@@ -236,7 +236,7 @@ The absolute session timeout prevents indefinite refresh chains.
 ## Platform Security
 
 All platform-specific crypto is provided by
-[libenclaveapp](https://github.com/jgowdy/libenclaveapp).
+[libenclaveapp](https://github.com/godaddy/libenclaveapp).
 
 | Platform | Backend | Notes |
 |---|---|---|
