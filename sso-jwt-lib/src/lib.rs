@@ -131,4 +131,50 @@ mod tests {
         assert_eq!(opts.client_id.as_deref(), Some("my-client"));
         assert!(opts.server.is_none());
     }
+
+    #[test]
+    fn options_with_cache_name() {
+        let opts = GetJwtOptions {
+            cache_name: Some("my-project".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(opts.cache_name.as_deref(), Some("my-project"));
+    }
+
+    #[test]
+    fn options_with_biometric_and_no_open() {
+        let opts = GetJwtOptions {
+            biometric: Some(true),
+            no_open: Some(true),
+            ..Default::default()
+        };
+        assert_eq!(opts.biometric, Some(true));
+        assert_eq!(opts.no_open, Some(true));
+    }
+
+    #[test]
+    fn options_clone() {
+        let opts = GetJwtOptions {
+            server: Some("test".to_string()),
+            risk_level: Some(3),
+            ..Default::default()
+        };
+        let cloned = opts.clone();
+        assert_eq!(cloned.server, opts.server);
+        assert_eq!(cloned.risk_level, opts.risk_level);
+    }
+
+    #[test]
+    fn options_debug() {
+        let opts = GetJwtOptions::default();
+        let debug = format!("{opts:?}");
+        assert!(debug.contains("GetJwtOptions"));
+    }
+
+    #[test]
+    fn re_exports_config_types() {
+        // Verify that the re-exported types are accessible
+        let fc = FileConfig::default();
+        assert!(fc.default_server.is_none());
+    }
 }

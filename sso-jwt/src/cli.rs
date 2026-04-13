@@ -329,3 +329,332 @@ fn resolve_token(config: &Config) -> Result<String> {
     let storage = secure_storage::platform_storage(config.biometric)?;
     cache::resolve_token(config, storage.as_ref())
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    fn default_cli() -> Cli {
+        Cli {
+            server: None,
+            environment: None,
+            cache_name: "default".to_string(),
+            risk_level: 2,
+            oauth_url: None,
+            biometric: false,
+            no_open: false,
+            clear: false,
+            command: None,
+        }
+    }
+
+    fn default_config() -> Config {
+        Config {
+            server: "default".to_string(),
+            environment: None,
+            oauth_url: String::new(),
+            token_url: None,
+            heartbeat_url: None,
+            client_id: "sso-jwt".to_string(),
+            risk_level: 2,
+            biometric: false,
+            cache_name: "default".to_string(),
+            no_open: false,
+            clear: false,
+        }
+    }
+
+    #[test]
+    fn apply_overrides_server() {
+        let mut config = default_config();
+        let cli = Cli {
+            server: Some("custom-server".to_string()),
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.server, "custom-server");
+    }
+
+    #[test]
+    fn apply_overrides_environment() {
+        let mut config = default_config();
+        let cli = Cli {
+            environment: Some("staging".to_string()),
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.environment.as_deref(), Some("staging"));
+    }
+
+    #[test]
+    fn apply_overrides_oauth_url() {
+        let mut config = default_config();
+        let cli = Cli {
+            oauth_url: Some("https://auth.example.com/device".to_string()),
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.oauth_url, "https://auth.example.com/device");
+    }
+
+    #[test]
+    fn apply_overrides_risk_level() {
+        let mut config = default_config();
+        let cli = Cli {
+            risk_level: 3,
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.risk_level, 3);
+    }
+
+    #[test]
+    fn apply_overrides_cache_name() {
+        let mut config = default_config();
+        let cli = Cli {
+            cache_name: "my-cache".to_string(),
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.cache_name, "my-cache");
+    }
+
+    #[test]
+    fn apply_overrides_biometric_true() {
+        let mut config = default_config();
+        let cli = Cli {
+            biometric: true,
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert!(config.biometric);
+    }
+
+    #[test]
+    fn apply_overrides_biometric_false_does_not_override_config() {
+        let mut config = default_config();
+        config.biometric = true;
+        let cli = Cli {
+            biometric: false,
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        // biometric: false in CLI should NOT override config's true
+        assert!(config.biometric);
+    }
+
+    #[test]
+    fn apply_overrides_no_open() {
+        let mut config = default_config();
+        let cli = Cli {
+            no_open: true,
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert!(config.no_open);
+    }
+
+    #[test]
+    fn apply_overrides_clear() {
+        let mut config = default_config();
+        let cli = Cli {
+            clear: true,
+            ..default_cli()
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert!(config.clear);
+    }
+
+    #[test]
+    fn apply_overrides_preserves_defaults() {
+        let mut config = default_config();
+        config.server = "original".to_string();
+        config.oauth_url = "https://original.com".to_string();
+        let cli = default_cli();
+        apply_cli_overrides(&mut config, &cli);
+        // server and oauth_url should remain unchanged when CLI values are None/empty
+        assert_eq!(config.server, "original");
+        assert_eq!(config.oauth_url, "https://original.com");
+    }
+
+    #[test]
+    fn apply_overrides_all_fields() {
+        let mut config = default_config();
+        let cli = Cli {
+            server: Some("s".to_string()),
+            environment: Some("e".to_string()),
+            cache_name: "c".to_string(),
+            risk_level: 1,
+            oauth_url: Some("https://oauth.example.com".to_string()),
+            biometric: true,
+            no_open: true,
+            clear: true,
+            command: None,
+        };
+        apply_cli_overrides(&mut config, &cli);
+        assert_eq!(config.server, "s");
+        assert_eq!(config.environment.as_deref(), Some("e"));
+        assert_eq!(config.cache_name, "c");
+        assert_eq!(config.risk_level, 1);
+        assert_eq!(config.oauth_url, "https://oauth.example.com");
+        assert!(config.biometric);
+        assert!(config.no_open);
+        assert!(config.clear);
+    }
+
+    #[test]
+    fn parse_cli_help() {
+        let result = Cli::try_parse_from(["sso-jwt", "--help"]);
+        // --help causes an error (exit code 0), but clap returns Err
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_cli_shell_init_bash() {
+        let cli = Cli::parse_from(["sso-jwt", "shell-init", "bash"]);
+        match cli.command {
+            Some(Commands::ShellInit { shell }) => {
+                assert_eq!(shell.as_deref(), Some("bash"));
+            }
+            _ => unreachable!("expected ShellInit command"),
+        }
+    }
+
+    #[test]
+    fn parse_cli_exec() {
+        let cli = Cli::parse_from(["sso-jwt", "exec", "--", "my-command", "arg1"]);
+        match cli.command {
+            Some(Commands::Exec { env_var, command }) => {
+                assert_eq!(env_var, "SSO_JWT");
+                assert_eq!(command, vec!["my-command", "arg1"]);
+            }
+            _ => unreachable!("expected Exec command"),
+        }
+    }
+
+    #[test]
+    fn parse_cli_exec_custom_env_var() {
+        let cli = Cli::parse_from([
+            "sso-jwt",
+            "exec",
+            "--env-var",
+            "MY_TOKEN",
+            "--",
+            "cmd",
+        ]);
+        match cli.command {
+            Some(Commands::Exec { env_var, .. }) => {
+                assert_eq!(env_var, "MY_TOKEN");
+            }
+            _ => unreachable!("expected Exec command"),
+        }
+    }
+
+    #[test]
+    fn parse_cli_flags() {
+        let cli = Cli::parse_from([
+            "sso-jwt",
+            "--server",
+            "myco",
+            "--environment",
+            "prod",
+            "--risk-level",
+            "3",
+            "--cache-name",
+            "work",
+            "--biometric",
+            "--no-open",
+            "--clear",
+        ]);
+        assert_eq!(cli.server.as_deref(), Some("myco"));
+        assert_eq!(cli.environment.as_deref(), Some("prod"));
+        assert_eq!(cli.risk_level, 3);
+        assert_eq!(cli.cache_name, "work");
+        assert!(cli.biometric);
+        assert!(cli.no_open);
+        assert!(cli.clear);
+    }
+
+    #[test]
+    fn parse_cli_defaults() {
+        let cli = Cli::parse_from(["sso-jwt"]);
+        assert!(cli.server.is_none());
+        assert!(cli.environment.is_none());
+        assert_eq!(cli.cache_name, "default");
+        assert_eq!(cli.risk_level, 2);
+        assert!(!cli.biometric);
+        assert!(!cli.no_open);
+        assert!(!cli.clear);
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn parse_cli_install() {
+        let cli = Cli::parse_from(["sso-jwt", "install"]);
+        assert!(matches!(cli.command, Some(Commands::Install)));
+    }
+
+    #[test]
+    fn parse_cli_uninstall() {
+        let cli = Cli::parse_from(["sso-jwt", "uninstall"]);
+        assert!(matches!(cli.command, Some(Commands::Uninstall)));
+    }
+
+    #[test]
+    fn parse_cli_add_server() {
+        let cli = Cli::parse_from([
+            "sso-jwt",
+            "add-server",
+            "myco",
+            "--from-url",
+            "https://example.com/config.toml",
+            "--default",
+            "--force",
+        ]);
+        match cli.command {
+            Some(Commands::AddServer {
+                label,
+                from_url,
+                from_github,
+                default: set_default,
+                force,
+            }) => {
+                assert_eq!(label, "myco");
+                assert_eq!(
+                    from_url.as_deref(),
+                    Some("https://example.com/config.toml")
+                );
+                assert!(from_github.is_none());
+                assert!(set_default);
+                assert!(force);
+            }
+            _ => unreachable!("expected AddServer command"),
+        }
+    }
+
+    #[test]
+    fn run_install_non_windows_does_not_error() {
+        // On non-Windows, run_install just prints instructions
+        let result = run_install();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn run_uninstall_non_windows_does_not_error() {
+        let result = run_uninstall();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn run_add_server_no_source_returns_error() {
+        let result = run_add_server("label", None, false, false, false);
+        assert!(result.is_err());
+        let err = result.expect_err("should error").to_string();
+        assert!(
+            err.contains("--from-url") || err.contains("--from-github"),
+            "expected source error, got: {err}"
+        );
+    }
+}
