@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::config::Config;
 use crate::jwt;
 use crate::oauth;
-use crate::secure_storage::SecureStorage;
+use enclaveapp_app_storage::EncryptionStorage;
 
 // Cache file magic bytes
 const MAGIC: &[u8; 4] = b"SJWT";
@@ -198,7 +198,7 @@ fn read_ciphertext(path: &Path, expected_len: u32) -> Result<Vec<u8>> {
 /// Write a cache file with the given token.
 pub fn write_cache(
     path: &Path,
-    storage: &dyn SecureStorage,
+    storage: &dyn EncryptionStorage,
     token: &str,
     risk_level: u8,
     session_start: u64,
@@ -245,7 +245,7 @@ pub fn clear(config: &Config) -> Result<()> {
 /// 2. Classify token state
 /// 3. Return cached / refresh / re-auth as appropriate
 #[allow(clippy::print_stderr)]
-pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<String> {
+pub fn resolve_token(config: &Config, storage: &dyn EncryptionStorage) -> Result<String> {
     let cache_path = config.cache_file_path();
 
     // Step 1: Read cache header
@@ -261,8 +261,8 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
                 let plaintext = storage
                     .decrypt(&ciphertext)
                     .context("failed to decrypt cached token")?;
-                let token = String::from_utf8(plaintext.to_vec())
-                    .context("cached token is not valid UTF-8")?;
+                let token =
+                    String::from_utf8(plaintext).context("cached token is not valid UTF-8")?;
                 return Ok(token);
             }
 
@@ -272,8 +272,8 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
                 let plaintext = storage
                     .decrypt(&ciphertext)
                     .context("failed to decrypt cached token")?;
-                let token = String::from_utf8(plaintext.to_vec())
-                    .context("cached token is not valid UTF-8")?;
+                let token =
+                    String::from_utf8(plaintext).context("cached token is not valid UTF-8")?;
 
                 // If no heartbeat URL configured, treat like Fresh (return cached)
                 if let Some(ref heartbeat_url) = config.heartbeat_url {
@@ -312,8 +312,8 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
                     let plaintext = storage
                         .decrypt(&ciphertext)
                         .context("failed to decrypt cached token")?;
-                    let token = String::from_utf8(plaintext.to_vec())
-                        .context("cached token is not valid UTF-8")?;
+                    let token =
+                        String::from_utf8(plaintext).context("cached token is not valid UTF-8")?;
 
                     if let Some(new_token) = oauth::heartbeat_refresh(heartbeat_url, &token) {
                         write_cache(
@@ -361,8 +361,8 @@ pub fn resolve_token(config: &Config, storage: &dyn SecureStorage) -> Result<Str
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::secure_storage::mock::MockStorage;
     use base64::Engine;
+    use enclaveapp_app_storage::mock::MockEncryptionStorage as MockStorage;
 
     fn make_jwt(iat: u64) -> String {
         let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
@@ -531,7 +531,7 @@ mod tests {
         let header = read_header(&path).unwrap().unwrap();
         let ciphertext = read_ciphertext(&path, header.ciphertext_len).unwrap();
         let plaintext = storage.decrypt(&ciphertext).unwrap();
-        let recovered = String::from_utf8(plaintext.to_vec()).unwrap();
+        let recovered = String::from_utf8(plaintext).unwrap();
         assert_eq!(recovered, token);
     }
 
@@ -858,7 +858,7 @@ mod tests {
             .expect("header present");
         let ct = read_ciphertext(&path, header.ciphertext_len).expect("read_ciphertext");
         let pt = storage.decrypt(&ct).expect("decrypt");
-        let recovered = String::from_utf8(pt.to_vec()).expect("valid utf-8");
+        let recovered = String::from_utf8(pt).expect("valid utf-8");
         assert_eq!(recovered, token);
     }
 
@@ -883,7 +883,7 @@ mod tests {
             .expect("header present");
         let ct = read_ciphertext(&path, header.ciphertext_len).expect("read_ciphertext");
         let pt = storage.decrypt(&ct).expect("decrypt");
-        let recovered = String::from_utf8(pt.to_vec()).expect("valid utf-8");
+        let recovered = String::from_utf8(pt).expect("valid utf-8");
         assert_eq!(recovered, token);
     }
 
@@ -920,7 +920,7 @@ mod tests {
         // Verify the token itself round-trips
         let ct = read_ciphertext(&path, header.ciphertext_len).expect("read_ciphertext");
         let pt = storage.decrypt(&ct).expect("decrypt");
-        let recovered = String::from_utf8(pt.to_vec()).expect("valid utf-8");
+        let recovered = String::from_utf8(pt).expect("valid utf-8");
         assert_eq!(recovered, token);
     }
 
@@ -988,7 +988,7 @@ mod tests {
         assert_eq!(hdr_a.token_iat, 1700000000);
         let ct_a = read_ciphertext(&path_a, hdr_a.ciphertext_len).expect("read_ciphertext A");
         let pt_a = storage.decrypt(&ct_a).expect("decrypt A");
-        assert_eq!(String::from_utf8(pt_a.to_vec()).expect("utf-8 A"), token_a);
+        assert_eq!(String::from_utf8(pt_a).expect("utf-8 A"), token_a);
 
         // Read back cache B
         let hdr_b = read_header(&path_b)
@@ -998,7 +998,7 @@ mod tests {
         assert_eq!(hdr_b.token_iat, 1700100000);
         let ct_b = read_ciphertext(&path_b, hdr_b.ciphertext_len).expect("read_ciphertext B");
         let pt_b = storage.decrypt(&ct_b).expect("decrypt B");
-        assert_eq!(String::from_utf8(pt_b.to_vec()).expect("utf-8 B"), token_b);
+        assert_eq!(String::from_utf8(pt_b).expect("utf-8 B"), token_b);
     }
 
     // ---- Overwrite existing cache ----
@@ -1024,7 +1024,7 @@ mod tests {
 
         let ct = read_ciphertext(&path, header.ciphertext_len).expect("read_ciphertext");
         let pt = storage.decrypt(&ct).expect("decrypt");
-        let recovered = String::from_utf8(pt.to_vec()).expect("valid utf-8");
+        let recovered = String::from_utf8(pt).expect("valid utf-8");
         assert_eq!(recovered, token_new);
         assert_ne!(recovered, token_old);
     }

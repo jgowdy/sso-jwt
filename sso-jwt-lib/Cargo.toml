@@ -16,23 +16,13 @@ toml = "0.8"
 open = "5"
 zeroize = { version = "1", features = ["derive"] }
 
-[target.'cfg(target_os = "macos")'.dependencies]
-enclaveapp-core = { workspace = true }
-enclaveapp-apple = { workspace = true, features = ["encryption"] }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-enclaveapp-core = { workspace = true }
-enclaveapp-windows = { workspace = true, features = ["encryption"] }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-enclaveapp-core = { workspace = true }
-enclaveapp-software = { workspace = true }
-enclaveapp-bridge = { workspace = true }
-enclaveapp-wsl = { workspace = true }
+[dependencies.enclaveapp-app-storage]
+workspace = true
 
 [dev-dependencies]
 mockito = "1"
 tempfile = "3"
+enclaveapp-app-storage = { workspace = true, features = ["mock"] }
 
 [lints]
 workspace = true

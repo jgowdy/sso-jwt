@@ -15,8 +15,16 @@ fn se_encrypt_decrypt_roundtrip() {
         return;
     }
 
-    let storage =
-        sso_jwt_lib::secure_storage::platform_storage(false).expect("failed to create storage");
+    use enclaveapp_app_storage::{create_encryption_storage, AccessPolicy, StorageConfig};
+
+    let storage = create_encryption_storage(StorageConfig {
+        app_name: "sso-jwt".into(),
+        key_label: "cache-key".into(),
+        access_policy: AccessPolicy::None,
+        extra_bridge_paths: vec![],
+        keys_dir: None,
+    })
+    .expect("failed to create storage");
 
     // Normal JWT-like data
     let plaintext =
@@ -24,7 +32,7 @@ fn se_encrypt_decrypt_roundtrip() {
     let ciphertext = storage.encrypt(plaintext).expect("encrypt failed");
     assert_ne!(ciphertext, plaintext);
     let decrypted = storage.decrypt(&ciphertext).expect("decrypt failed");
-    assert_eq!(&*decrypted, plaintext);
+    assert_eq!(&decrypted, plaintext);
     eprintln!("JWT roundtrip: {} bytes OK", plaintext.len());
 
     // Empty data
@@ -37,7 +45,7 @@ fn se_encrypt_decrypt_roundtrip() {
     let large = vec![0x42u8; 100_000];
     let large_ct = storage.encrypt(&large).expect("encrypt large failed");
     let large_pt = storage.decrypt(&large_ct).expect("decrypt large failed");
-    assert_eq!(&*large_pt, &large);
+    assert_eq!(&large_pt, &large);
     eprintln!("Large (100KB) roundtrip OK");
 
     eprintln!("ALL PASSED: Secure Enclave via libenclaveapp CryptoKit");
