@@ -625,6 +625,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn run_install_non_windows_does_not_error() {
         // On non-Windows, run_install just prints instructions
         let result = run_install();
@@ -632,6 +633,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "windows"))]
     fn run_uninstall_non_windows_does_not_error() {
         let result = run_uninstall();
         assert!(result.is_ok());
