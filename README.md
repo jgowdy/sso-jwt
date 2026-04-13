@@ -14,7 +14,7 @@ This repository is a Cargo workspace containing four crates:
 |---|---|---|
 | [`sso-jwt`](sso-jwt/) | Binary | CLI tool for obtaining JWTs |
 | [`sso-jwt-lib`](sso-jwt-lib/) | Library | Core logic: caching, OAuth, secure storage, JWT parsing |
-| [`sso-jwt-napi`](sso-jwt-napi/) | cdylib | Node.js native addon via napi-rs (drop-in replacement for `sso-jwt-legacy`) |
+| [`sso-jwt-napi`](sso-jwt-napi/) | cdylib | Node.js native addon via napi-rs |
 | [`sso-jwt-tpm-bridge`](sso-jwt-tpm-bridge/) | Binary | Windows TPM bridge for WSL environments |
 
 ## Installation
@@ -129,16 +129,10 @@ sso-jwt --clear
 
 ### Node.js Library Usage
 
-The napi binding is a drop-in replacement for `sso-jwt-legacy`:
-
 ```javascript
-// Old (Node.js)
-const { getJwt } = require('sso-jwt-legacy');
-
-// New (Rust via napi-rs) -- identical API
 const { getJwt } = require('sso-jwt');
 
-const jwt = await getJwt({ env: 'prod', cacheName: 'default' });
+const jwt = await getJwt({ server: 'myserver', env: 'prod', cacheName: 'default' });
 ```
 
 See [`sso-jwt-napi/README.md`](sso-jwt-napi/) for details.

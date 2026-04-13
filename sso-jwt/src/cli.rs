@@ -81,8 +81,8 @@ pub enum Commands {
 
     /// Add a server profile from a URL, GitHub repo, or local file
     AddServer {
-        /// Label for this server profile
-        label: String,
+        /// Label for this server profile (defaults to "default")
+        label: Option<String>,
 
         /// URL or local path to fetch the server configuration from
         #[arg(long, group = "source")]
@@ -91,10 +91,6 @@ pub enum Commands {
         /// GitHub repo path: owner/repo/file.toml (fetches via GitHub API)
         #[arg(long, group = "source")]
         from_github: Option<String>,
-
-        /// Set this server as the default
-        #[arg(long)]
-        default: bool,
 
         /// Overwrite existing server with the same label
         #[arg(long)]
@@ -122,12 +118,13 @@ pub fn run(cli: Cli) -> Result<()> {
             ref label,
             ref from_url,
             ref from_github,
-            default: set_default,
             force,
         }) => {
+            let set_default = label.is_none();
+            let label = label.as_deref().unwrap_or("default");
             let source = from_url.as_deref().or(from_github.as_deref());
             let is_github = from_github.is_some();
-            return run_add_server(label, source, is_github, *set_default, *force);
+            return run_add_server(label, source, is_github, set_default, *force);
         }
         _ => {}
     }
@@ -596,14 +593,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_cli_add_server() {
+    fn parse_cli_add_server_with_label() {
         let cli = Cli::parse_from([
             "sso-jwt",
             "add-server",
             "myco",
             "--from-url",
             "https://example.com/config.toml",
-            "--default",
             "--force",
         ]);
         match cli.command {
@@ -611,14 +607,28 @@ mod tests {
                 label,
                 from_url,
                 from_github,
-                default: set_default,
                 force,
             }) => {
-                assert_eq!(label, "myco");
+                assert_eq!(label.as_deref(), Some("myco"));
                 assert_eq!(from_url.as_deref(), Some("https://example.com/config.toml"));
                 assert!(from_github.is_none());
-                assert!(set_default);
                 assert!(force);
+            }
+            _ => unreachable!("expected AddServer command"),
+        }
+    }
+
+    #[test]
+    fn parse_cli_add_server_no_label() {
+        let cli = Cli::parse_from([
+            "sso-jwt",
+            "add-server",
+            "--from-url",
+            "https://example.com/config.toml",
+        ]);
+        match cli.command {
+            Some(Commands::AddServer { label, .. }) => {
+                assert!(label.is_none(), "label should be None when omitted");
             }
             _ => unreachable!("expected AddServer command"),
         }

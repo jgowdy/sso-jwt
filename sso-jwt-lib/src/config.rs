@@ -302,10 +302,9 @@ impl Config {
             );
         }
 
-        let is_first = servers.is_empty();
         servers.insert(label.to_string(), server_config);
 
-        if set_default || is_first {
+        if set_default {
             fc.default_server = Some(label.to_string());
         }
 

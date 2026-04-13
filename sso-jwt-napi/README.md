@@ -1,8 +1,8 @@
 # sso-jwt-napi
 
-Node.js native addon for sso-jwt, built with [napi-rs](https://napi.rs). Drop-in replacement for the `sso-jwt-legacy` npm package.
+Node.js native addon for sso-jwt, built with [napi-rs](https://napi.rs).
 
-All the security benefits of the Rust implementation (Secure Enclave / TPM caching, proactive refresh, memory zeroing) are available to Node.js consumers with zero API changes.
+All the security benefits of the Rust implementation (Secure Enclave / TPM caching, proactive refresh, memory zeroing) are available to Node.js consumers.
 
 ## Installation
 
@@ -22,27 +22,17 @@ npm run build
 ```javascript
 const { getJwt } = require('sso-jwt');
 
-// Minimal -- uses defaults (prod, risk level 2, caching enabled)
+// Minimal -- uses defaults from config file
 const jwt = await getJwt();
 
 // With options
 const jwt = await getJwt({
+  server: 'myserver',
   env: 'dev',
   cacheName: 'my-app',
   riskLevel: 3,
 });
 ```
-
-### Migrating from `sso-jwt-legacy`
-
-Change one line:
-
-```diff
-- const { getJwt } = require('sso-jwt-legacy');
-+ const { getJwt } = require('sso-jwt');
-```
-
-The function signature is identical. The `validate` option from the old package is accepted but ignored -- proactive refresh handles this automatically.
 
 ### TypeScript
 
@@ -52,6 +42,7 @@ Type definitions are included:
 import { getJwt, JwtOptions } from 'sso-jwt';
 
 const options: JwtOptions = {
+  server: 'myserver',
   env: 'prod',
   cacheName: 'default',
 };
@@ -69,8 +60,9 @@ Returns an SSO JWT. Uses cached tokens when available, proactively refreshes tok
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `env` | `string` | `"prod"` | SSO environment: `"dev"`, `"test"`, `"ote"`, `"prod"` |
-| `oauthUrl` | `string` | (derived from env) | Override OAuth service URL |
+| `server` | `string` | `"default"` | Server profile name from config |
+| `env` | `string` | (default env) | Environment within the server profile |
+| `oauthUrl` | `string` | (from config) | Override OAuth service URL |
 | `cacheName` | `string` | `"default"` | Cache name for the encrypted token |
 | `riskLevel` | `number` | `2` | Risk level 1-3 (1=low/24h, 2=medium/12h, 3=high/1h) |
 | `biometric` | `boolean` | `false` | Require Touch ID / Windows Hello for each use |
@@ -82,16 +74,16 @@ The napi-rs binding calls the same Rust core library (`sso-jwt-lib`) used by the
 
 ```
 Node.js event loop
-  │
-  ├─ getJwt()  →  Promise
-  │     │
-  │     └─ tokio thread pool
-  │           │
-  │           ├─ Check encrypted cache (Secure Enclave / TPM decrypt)
-  │           ├─ Heartbeat refresh if approaching expiration
-  │           └─ OAuth Device Code flow if no valid cache
-  │
-  └─ resolved Promise  ←  JWT string
+  |
+  +- getJwt()  ->  Promise
+  |     |
+  |     +- tokio thread pool
+  |           |
+  |           +- Check encrypted cache (Secure Enclave / TPM decrypt)
+  |           +- Heartbeat refresh if approaching expiration
+  |           +- OAuth Device Code flow if no valid cache
+  |
+  +- resolved Promise  <-  JWT string
 ```
 
 ## Supported Platforms
