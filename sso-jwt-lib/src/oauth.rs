@@ -614,12 +614,10 @@ mod tests {
             .create();
 
         let client = reqwest::blocking::Client::new();
-        drop(get_device_code(
-            &client,
-            &server.url(),
-            "client/id+with spaces",
-        )
-        .unwrap());
+        drop(
+            get_device_code(&client, &server.url(), "client/id+with spaces")
+                .expect("device code request should succeed"),
+        );
         mock.assert();
     }
 
@@ -639,22 +637,25 @@ mod tests {
 
         let client = reqwest::blocking::Client::new();
         let url = format!("{}/token", server.url());
-        drop(poll_for_token(
-            &client,
-            &url,
-            None,
-            "client/id+with spaces",
-            "device+code/value",
-            0,
-            10,
-        )
-        .unwrap());
+        drop(
+            poll_for_token(
+                &client,
+                &url,
+                None,
+                "client/id+with spaces",
+                "device+code/value",
+                0,
+                10,
+            )
+            .expect("token poll should succeed"),
+        );
         mock.assert();
     }
 
     #[test]
     fn browser_command_parser_handles_flags() {
-        let parts = shell_words::split("firefox --private-window").unwrap();
+        let parts =
+            shell_words::split("firefox --private-window").expect("browser command should parse");
         assert_eq!(parts, vec!["firefox", "--private-window"]);
     }
 }

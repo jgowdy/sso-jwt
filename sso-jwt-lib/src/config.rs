@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use enclaveapp_core::metadata;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -50,6 +50,28 @@ pub struct EnvironmentFileConfig {
 }
 
 impl Config {
+    fn validate_endpoint_url(name: &str, value: &str) -> Result<()> {
+        let parsed =
+            reqwest::Url::parse(value).map_err(|error| anyhow!("invalid {name}: {error}"))?;
+        if parsed.scheme() != "https" {
+            bail!("{name} must use HTTPS: {value}");
+        }
+        Ok(())
+    }
+
+    fn validate_endpoint_urls(&self) -> Result<()> {
+        if !self.oauth_url.is_empty() {
+            Self::validate_endpoint_url("oauth_url", &self.oauth_url)?;
+        }
+        if let Some(token_url) = self.token_url.as_deref() {
+            Self::validate_endpoint_url("token_url", token_url)?;
+        }
+        if let Some(heartbeat_url) = self.heartbeat_url.as_deref() {
+            Self::validate_endpoint_url("heartbeat_url", heartbeat_url)?;
+        }
+        Ok(())
+    }
+
     /// Load config from file and environment variables.
     /// CLI flags are applied separately by the caller.
     /// After loading, call `resolve_server()` to finalize oauth_url/heartbeat_url
@@ -121,6 +143,7 @@ impl Config {
     pub fn resolve_server(&mut self) -> Result<()> {
         // Direct URL mode: oauth_url already set, skip server resolution
         if !self.oauth_url.is_empty() {
+            self.validate_endpoint_urls()?;
             return Ok(());
         }
 
@@ -210,6 +233,7 @@ impl Config {
             self.heartbeat_url = env_config.heartbeat_url.clone();
         }
 
+        self.validate_endpoint_urls()?;
         Ok(())
     }
 
@@ -445,6 +469,17 @@ mod tests {
     }
 
     #[test]
+    fn direct_oauth_url_mode_rejects_cleartext() {
+        let mut cfg = test_config();
+        cfg.oauth_url = "http://auth.example.com/device".to_string();
+
+        let error = cfg
+            .resolve_server()
+            .expect_err("cleartext oauth_url should fail");
+        assert!(error.to_string().contains("oauth_url must use HTTPS"));
+    }
+
+    #[test]
     fn missing_server_returns_error() {
         let mut cfg = test_config();
         cfg.server = "nonexistent".to_string();
@@ -572,6 +607,21 @@ oauth_url = "https://other.example.com/oauth"
         std::env::set_var("SSOJWT_OAUTH_URL", "https://custom.example.com/oauth");
         let cfg = Config::load().expect("Config::load should succeed");
         assert_eq!(cfg.oauth_url, "https://custom.example.com/oauth");
+    }
+
+    #[test]
+    fn env_var_cleartext_token_url_is_rejected() {
+        let _lock = ENV_MUTEX.lock().expect("env mutex poisoned");
+        let _guard = isolated_env_guard();
+
+        std::env::set_var("SSOJWT_OAUTH_URL", "https://custom.example.com/oauth");
+        std::env::set_var("SSOJWT_TOKEN_URL", "http://custom.example.com/token");
+
+        let mut cfg = Config::load().expect("Config::load should succeed");
+        let error = cfg
+            .resolve_server()
+            .expect_err("cleartext token_url should fail");
+        assert!(error.to_string().contains("token_url must use HTTPS"));
     }
 
     #[test]
@@ -933,5 +983,40 @@ oauth_url = "https://sso.example.com/device"
             cfg.heartbeat_url.as_deref(),
             Some("https://env.example.com/heartbeat")
         );
+    }
+
+    #[test]
+    fn resolve_server_rejects_cleartext_environment_heartbeat_url() {
+        let _lock = ENV_MUTEX.lock().expect("env mutex poisoned");
+        let _guard = isolated_env_guard();
+
+        let fc = FileConfig {
+            default_server: Some("myco".into()),
+            risk_level: None,
+            biometric: None,
+            cache_name: None,
+            servers: Some(HashMap::from([(
+                "myco".into(),
+                ServerFileConfig {
+                    client_id: Some("file-client".into()),
+                    environments: Some(HashMap::from([(
+                        "prod".into(),
+                        EnvironmentFileConfig {
+                            default: Some(true),
+                            oauth_url: Some("https://auth.example.com/device".into()),
+                            token_url: None,
+                            heartbeat_url: Some("http://file.example.com/heartbeat".into()),
+                        },
+                    )])),
+                },
+            )])),
+        };
+        Config::save_file_config(&fc).expect("save config");
+
+        let mut cfg = Config::load().expect("load config");
+        let error = cfg
+            .resolve_server()
+            .expect_err("cleartext heartbeat_url should fail");
+        assert!(error.to_string().contains("heartbeat_url must use HTTPS"));
     }
 }
