@@ -499,6 +499,9 @@ mod tests {
     struct TestConfigDirGuard {
         prev_xdg: Option<OsString>,
         prev_home: Option<OsString>,
+        prev_appdata: Option<OsString>,
+        prev_local_app_data: Option<OsString>,
+        prev_user_profile: Option<OsString>,
     }
 
     impl Drop for TestConfigDirGuard {
@@ -511,17 +514,38 @@ mod tests {
                 Some(value) => std::env::set_var("HOME", value),
                 None => std::env::remove_var("HOME"),
             }
+            match self.prev_appdata.take() {
+                Some(value) => std::env::set_var("APPDATA", value),
+                None => std::env::remove_var("APPDATA"),
+            }
+            match self.prev_local_app_data.take() {
+                Some(value) => std::env::set_var("LOCALAPPDATA", value),
+                None => std::env::remove_var("LOCALAPPDATA"),
+            }
+            match self.prev_user_profile.take() {
+                Some(value) => std::env::set_var("USERPROFILE", value),
+                None => std::env::remove_var("USERPROFILE"),
+            }
         }
     }
 
     fn isolate_config_dir(dir: &tempfile::TempDir) -> TestConfigDirGuard {
         let prev_xdg = std::env::var_os("XDG_CONFIG_HOME");
         let prev_home = std::env::var_os("HOME");
+        let prev_appdata = std::env::var_os("APPDATA");
+        let prev_local_app_data = std::env::var_os("LOCALAPPDATA");
+        let prev_user_profile = std::env::var_os("USERPROFILE");
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
         std::env::set_var("HOME", dir.path());
+        std::env::set_var("APPDATA", dir.path());
+        std::env::set_var("LOCALAPPDATA", dir.path());
+        std::env::set_var("USERPROFILE", dir.path());
         TestConfigDirGuard {
             prev_xdg,
             prev_home,
+            prev_appdata,
+            prev_local_app_data,
+            prev_user_profile,
         }
     }
 
@@ -767,7 +791,11 @@ mod tests {
 
     #[test]
     fn clear_removes_file() {
+        let _lock = crate::config::TEST_ENV_MUTEX
+            .lock()
+            .expect("env mutex poisoned");
         let dir = tempfile::tempdir().unwrap();
+        let _guard = isolate_config_dir(&dir);
         let path = dir.path().join("default.enc");
         fs::write(&path, b"dummy").unwrap();
         assert!(path.exists());
