@@ -502,6 +502,7 @@ mod tests {
         prev_appdata: Option<OsString>,
         prev_local_app_data: Option<OsString>,
         prev_user_profile: Option<OsString>,
+        prev_test_config_dir: Option<OsString>,
     }
 
     impl Drop for TestConfigDirGuard {
@@ -526,6 +527,10 @@ mod tests {
                 Some(value) => std::env::set_var("USERPROFILE", value),
                 None => std::env::remove_var("USERPROFILE"),
             }
+            match self.prev_test_config_dir.take() {
+                Some(value) => std::env::set_var("SSOJWT_TEST_CONFIG_DIR", value),
+                None => std::env::remove_var("SSOJWT_TEST_CONFIG_DIR"),
+            }
         }
     }
 
@@ -535,17 +540,20 @@ mod tests {
         let prev_appdata = std::env::var_os("APPDATA");
         let prev_local_app_data = std::env::var_os("LOCALAPPDATA");
         let prev_user_profile = std::env::var_os("USERPROFILE");
+        let prev_test_config_dir = std::env::var_os("SSOJWT_TEST_CONFIG_DIR");
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
         std::env::set_var("HOME", dir.path());
         std::env::set_var("APPDATA", dir.path());
         std::env::set_var("LOCALAPPDATA", dir.path());
         std::env::set_var("USERPROFILE", dir.path());
+        std::env::set_var("SSOJWT_TEST_CONFIG_DIR", dir.path());
         TestConfigDirGuard {
             prev_xdg,
             prev_home,
             prev_appdata,
             prev_local_app_data,
             prev_user_profile,
+            prev_test_config_dir,
         }
     }
 

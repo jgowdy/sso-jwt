@@ -11,6 +11,8 @@ const DEFAULT_RISK_LEVEL: u8 = 2;
 const DEFAULT_CACHE_NAME: &str = "default";
 const DEFAULT_CLIENT_ID: &str = "sso-jwt";
 const DEFAULT_SERVER: &str = "default";
+#[cfg(test)]
+const TEST_CONFIG_DIR_ENV: &str = "SSOJWT_TEST_CONFIG_DIR";
 
 /// Resolved configuration after merging file, env vars, and CLI flags.
 #[derive(Debug, Clone)]
@@ -318,6 +320,11 @@ impl Config {
 
     /// XDG-compliant config/cache directory.
     pub fn config_dir() -> PathBuf {
+        #[cfg(test)]
+        if let Some(path) = std::env::var_os(TEST_CONFIG_DIR_ENV) {
+            return PathBuf::from(path);
+        }
+
         dirs::config_dir()
             .unwrap_or_else(|| {
                 dirs::home_dir()
@@ -460,7 +467,7 @@ impl Config {
 mod tests {
     use super::*;
 
-    const SSOJWT_KEYS: [&str; 9] = [
+    const SSOJWT_KEYS: [&str; 10] = [
         "SSOJWT_SERVER",
         "SSOJWT_ENVIRONMENT",
         "SSOJWT_OAUTH_URL",
@@ -470,6 +477,7 @@ mod tests {
         "SSOJWT_RISK_LEVEL",
         "SSOJWT_BIOMETRIC",
         "SSOJWT_CACHE_NAME",
+        TEST_CONFIG_DIR_ENV,
     ];
 
     /// Save current SSOJWT env vars, clear them, and return saved values.
@@ -498,6 +506,7 @@ mod tests {
         prev_appdata: Option<String>,
         prev_local_app_data: Option<String>,
         prev_user_profile: Option<String>,
+        prev_test_config_dir: Option<String>,
         _dir: tempfile::TempDir,
     }
 
@@ -524,6 +533,10 @@ mod tests {
                 Some(value) => std::env::set_var("USERPROFILE", value),
                 None => std::env::remove_var("USERPROFILE"),
             }
+            match &self.prev_test_config_dir {
+                Some(value) => std::env::set_var(TEST_CONFIG_DIR_ENV, value),
+                None => std::env::remove_var(TEST_CONFIG_DIR_ENV),
+            }
         }
     }
 
@@ -534,12 +547,14 @@ mod tests {
         let prev_appdata = std::env::var("APPDATA").ok();
         let prev_local_app_data = std::env::var("LOCALAPPDATA").ok();
         let prev_user_profile = std::env::var("USERPROFILE").ok();
+        let prev_test_config_dir = std::env::var(TEST_CONFIG_DIR_ENV).ok();
         let dir = tempfile::tempdir().expect("tempdir");
         std::env::set_var("XDG_CONFIG_HOME", dir.path());
         std::env::set_var("HOME", dir.path());
         std::env::set_var("APPDATA", dir.path());
         std::env::set_var("LOCALAPPDATA", dir.path());
         std::env::set_var("USERPROFILE", dir.path());
+        std::env::set_var(TEST_CONFIG_DIR_ENV, dir.path());
         TestEnvGuard {
             saved,
             prev_xdg,
@@ -547,6 +562,7 @@ mod tests {
             prev_appdata,
             prev_local_app_data,
             prev_user_profile,
+            prev_test_config_dir,
             _dir: dir,
         }
     }
