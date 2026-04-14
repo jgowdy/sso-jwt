@@ -90,11 +90,9 @@ impl Config {
         }
     }
 
-    fn legacy_component_is_unambiguous(value: &str) -> bool {
-        let value = if value.is_empty() { "default" } else { value };
-        value
-            .bytes()
-            .all(|byte| matches!(byte, b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_'))
+    fn legacy_component_is_legacy_safe(value: &str) -> bool {
+        let normalized = if value.is_empty() { "default" } else { value };
+        Self::legacy_cache_component(value) == normalized && !normalized.contains('-')
     }
 
     fn validate_endpoint_url(name: &str, value: &str) -> Result<()> {
@@ -125,8 +123,42 @@ impl Config {
     /// from server profiles.
     pub fn load() -> Result<Self> {
         let fc = Self::load_file_config_if_exists()?.unwrap_or_default();
+        let mut cfg = Self::from_file_config(fc);
+        cfg.apply_env_overrides();
+        Ok(cfg)
+    }
 
-        let mut cfg = Config {
+    /// Load config for local cache clearing.
+    ///
+    /// This is intentionally best-effort: malformed or unreadable config files
+    /// should not prevent clearing local token caches.
+    pub fn load_for_clear() -> Self {
+        let mut cfg = match Self::load_file_config_if_exists() {
+            Ok(Some(fc)) => Self::from_file_config(fc),
+            Ok(None) | Err(_) => Self::default_config(),
+        };
+        cfg.apply_env_overrides();
+        cfg
+    }
+
+    fn default_config() -> Self {
+        Config {
+            server: DEFAULT_SERVER.to_string(),
+            environment: None,
+            oauth_url: String::new(),
+            token_url: None,
+            heartbeat_url: None,
+            client_id: DEFAULT_CLIENT_ID.to_string(),
+            risk_level: DEFAULT_RISK_LEVEL,
+            biometric: false,
+            cache_name: DEFAULT_CACHE_NAME.to_string(),
+            no_open: false,
+            clear: false,
+        }
+    }
+
+    fn from_file_config(fc: FileConfig) -> Self {
+        Config {
             server: fc
                 .default_server
                 .unwrap_or_else(|| DEFAULT_SERVER.to_string()),
@@ -142,40 +174,40 @@ impl Config {
                 .unwrap_or_else(|| DEFAULT_CACHE_NAME.to_string()),
             no_open: false,
             clear: false,
-        };
+        }
+    }
 
+    fn apply_env_overrides(&mut self) {
         // Environment variables override file config
         if let Ok(v) = std::env::var("SSOJWT_SERVER") {
-            cfg.server = v;
+            self.server = v;
         }
         if let Ok(v) = std::env::var("SSOJWT_ENVIRONMENT") {
-            cfg.environment = Some(v);
+            self.environment = Some(v);
         }
         if let Ok(v) = std::env::var("SSOJWT_OAUTH_URL") {
-            cfg.oauth_url = v;
+            self.oauth_url = v;
         }
         if let Ok(v) = std::env::var("SSOJWT_TOKEN_URL") {
-            cfg.token_url = Some(v);
+            self.token_url = Some(v);
         }
         if let Ok(v) = std::env::var("SSOJWT_HEARTBEAT_URL") {
-            cfg.heartbeat_url = Some(v);
+            self.heartbeat_url = Some(v);
         }
         if let Ok(v) = std::env::var("SSOJWT_CLIENT_ID") {
-            cfg.client_id = v;
+            self.client_id = v;
         }
         if let Ok(v) = std::env::var("SSOJWT_RISK_LEVEL") {
             if let Ok(rl) = v.parse::<u8>() {
-                cfg.risk_level = rl;
+                self.risk_level = rl;
             }
         }
         if let Ok(v) = std::env::var("SSOJWT_BIOMETRIC") {
-            cfg.biometric = v == "true" || v == "1";
+            self.biometric = v == "true" || v == "1";
         }
         if let Ok(v) = std::env::var("SSOJWT_CACHE_NAME") {
-            cfg.cache_name = v;
+            self.cache_name = v;
         }
-
-        Ok(cfg)
     }
 
     /// Resolve server profile from the config file.
@@ -318,12 +350,12 @@ impl Config {
     }
 
     pub(crate) fn can_use_legacy_cache_path(&self) -> bool {
-        Self::legacy_component_is_unambiguous(&self.server)
-            && Self::legacy_component_is_unambiguous(&self.cache_name)
+        Self::legacy_component_is_legacy_safe(&self.server)
+            && Self::legacy_component_is_legacy_safe(&self.cache_name)
             && self
                 .environment
                 .as_deref()
-                .map(Self::legacy_component_is_unambiguous)
+                .map(Self::legacy_component_is_legacy_safe)
                 .unwrap_or(true)
     }
 
@@ -351,6 +383,17 @@ impl Config {
             Some(legacy) if legacy != primary => vec![primary, legacy],
             _ => vec![primary],
         }
+    }
+
+    pub(crate) fn cache_clear_paths(&self) -> Vec<PathBuf> {
+        let primary = self.cache_file_path();
+        let mut paths = vec![primary];
+        if let Some(legacy) = self.legacy_cache_file_path() {
+            if !paths.iter().any(|path| path == &legacy) {
+                paths.push(legacy);
+            }
+        }
+        paths
     }
 
     fn load_file_config_if_exists() -> Result<Option<FileConfig>> {
@@ -900,6 +943,49 @@ another_unknown = 42
             cfg.cache_lookup_paths(),
             vec![cfg.cache_file_path(), legacy]
         );
+    }
+
+    #[test]
+    fn hyphenated_legacy_cache_path_is_not_consulted() {
+        let mut cfg = test_config();
+        cfg.server = "alpha-prod".to_string();
+        cfg.environment = Some("west-2".to_string());
+        cfg.cache_name = "cache-main".to_string();
+
+        assert!(cfg.legacy_cache_file_path().is_none());
+        assert_eq!(cfg.cache_lookup_paths(), vec![cfg.cache_file_path()]);
+    }
+
+    #[test]
+    fn hyphenated_legacy_components_are_treated_as_ambiguous() {
+        let mut cfg_a = test_config();
+        cfg_a.server = "a-b".to_string();
+        cfg_a.environment = Some("c".to_string());
+        cfg_a.cache_name = "d".to_string();
+
+        let mut cfg_b = test_config();
+        cfg_b.server = "a".to_string();
+        cfg_b.environment = Some("b-c".to_string());
+        cfg_b.cache_name = "d".to_string();
+
+        let legacy_alias = Config::cache_dir().join("a-b-c-d.enc");
+        assert!(cfg_a.legacy_cache_file_path().is_none());
+        assert!(cfg_b.legacy_cache_file_path().is_none());
+        assert_eq!(cfg_a.cache_lookup_paths(), vec![cfg_a.cache_file_path()]);
+        assert_eq!(cfg_b.cache_lookup_paths(), vec![cfg_b.cache_file_path()]);
+        assert_ne!(cfg_a.cache_file_path(), cfg_b.cache_file_path());
+        assert_ne!(cfg_a.cache_file_path(), legacy_alias);
+        assert_ne!(cfg_b.cache_file_path(), legacy_alias);
+    }
+
+    #[test]
+    fn cache_clear_paths_include_ambiguous_legacy_alias() {
+        let mut cfg = test_config();
+        cfg.server = "alpha-prod".to_string();
+        cfg.environment = Some("west-2".to_string());
+        cfg.cache_name = "cache-main".to_string();
+
+        assert_eq!(cfg.cache_clear_paths(), vec![cfg.cache_file_path()]);
     }
 
     #[test]
